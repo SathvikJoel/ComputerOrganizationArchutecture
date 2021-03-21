@@ -2,18 +2,52 @@ import math
 import random
 
 class Cache:
+    """
+    A class used to represent Cache
+
+
+    Attributes
+    ----------
+    num_blocks : int
+        Number of blocks in the cache
+    enum_blocks : int
+        Number of bits required to identify a block
+    eblock_num : int
+        Number of bits required for block offset
+    metrics : cache_metrics
+        An object to keep track of metrics for cache
+    bbox:   bbox
+        An object to handle the complexities of associativity
+    replacer : replacer
+        An object for handling replacement policies
+
+    Methods
+    -------
+    access(str)
+        Takes a hexadecimal string and process the request 
+    
+    hex_2_bin(str)
+        Converts a hexadecimal string to binary
+    """
+
     def __init__(self, associativity, replacement_policy, cache_size, block_size):
         self.num_blocks = cache_size // block_size
 
-        self.enum_blocks = math.log2(self.num_blocks)
-        self.eblock_size = math.log2(block_size)
+        self.enum_blocks = math.log2(self.num_blocks) 
+        self.eblock_size = math.log2(block_size)      #Block Offset
 
-        self.metrics = cache_metric(associativity, replacement_policy)
-        self.bbox = bbox(self, associativity)
-        self.replacer = replacer(self, replacement_policy)
+        self.metrics = cache_metric(associativity, replacement_policy) # maintains metrics
+        self.bbox = bbox(self, associativity) # Object that maintains cache blocks and sets
+        self.replacer = replacer(self, replacement_policy)  # Object for executing replacement policies
             
 
     def access(self, string):
+        """
+        Parameters
+        ----------
+        string : str
+            Hexadecimal Input string given by the user for request
+        """
         addr = self.hex_2_bin(string)
         access_type = addr[0]
         addr = addr[1:]
@@ -22,6 +56,15 @@ class Cache:
 
     @staticmethod
     def hex_2_bin(string):
+        """
+        Converts the hexadeciaml address into binary and parses it approporiately
+        
+        Parameters
+        ----------
+        string : str
+            Hexadecimal string
+            
+        """
         return (bin(int(string, 16))[2:]).zfill(32)
 
 class cache_metric:
