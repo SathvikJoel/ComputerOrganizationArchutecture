@@ -34,11 +34,11 @@ class Cache:
         self.num_blocks = cache_size // block_size
 
         self.enum_blocks = math.log2(self.num_blocks) 
-        self.eblock_size = math.log2(block_size)      #Block Offset
+        self.eblock_size = math.log2(block_size)      
 
-        self.metrics = cache_metric(associativity, replacement_policy) # maintains metrics
-        self.bbox = bbox(self, associativity) # Object that maintains cache blocks and sets
-        self.replacer = replacer(self, replacement_policy)  # Object for executing replacement policies
+        #self.metrics = cache_metric(associativity, replacement_policy) 
+        self.bbox = bbox(self, associativity) 
+        self.replacer = replacer(self, replacement_policy)  
             
 
     def access(self, string):
@@ -58,7 +58,7 @@ class Cache:
     def hex_2_bin(string):
         """
         Converts the hexadeciaml address into binary and parses it approporiately
-        
+
         Parameters
         ----------
         string : str
@@ -74,18 +74,18 @@ class cache_metric:
 class bbox:
     def __init__(self, cache, associativity):
         self.associativity = associativity
-        
         self.cache = cache
+
         if( self.associativity == 1):
-            self.blocks = [cache_block('0') for i in cache.num_blocks]
+            self.blocks = [cache_block('0') for i in range(0, self.cache.num_blocks)]
             self.tagbits = 31 - self.cache.enum_blocks - self.cache.eblock_size
 
         else:
             self.ways = self.cache.num_blocks if self.associativity == 0 else self.associativity
             self.num_sets = self.cache.num_blocks // self.ways
-            self.enum_sets = math.log2(nums_sets)
+            self.enum_sets = math.log2(self.num_sets)
             self.sets = [cache_set(self.ways) for i in range(0, self.num_sets)]
-            self.tagbits = 31 - self.enum_sets - self.cache.eblock_size
+            self.tagbits = (int)(31 - self.enum_sets - self.cache.eblock_size)
         
     def __call__(self, addr, access_type):
         if( self.associativity == 1):
@@ -105,19 +105,19 @@ class bbox:
         
         if( self.associativity != 1):
             #go to the set
-            head = self.sets[self.set_num(addr)]
+            head = self.sets[self.set_num(addr)].head
             self.cache.replacer(addr, access_type, self.tag(addr), self.set_num(addr), head)         
 
 
     def block_num(self, addr):
-        return int(addr[self.tagbits:self.tagbits + self.cache.enum_blocks],2)
+        return int(addr[int(self.tagbits):int(self.tagbits) + int(self.cache.enum_blocks)],2)
     
     def tag(self, addr):
-        return addr[0:self.tagbits]
+        return addr[0:int(self.tagbits)]
     
     def set_num(self, addr):
         if( self.enum_sets == 0): return 1
-        return int(addr[self.tagbits:self.tagbits + self.enum_sets], 2)
+        return int(addr[int(self.tagbits):int(self.tagbits) + int(self.enum_sets)], 2)
 
 
     
@@ -132,12 +132,13 @@ class replacer:
         else:
             # Pseudo LRU
             #create a list of trees of appropriate size
-            self.trees = []
+            self.tree = Pseudo_LRU(self, cache)
+            
         
-    def __call__(self, addr, access_type, tag, set, head ):
+    def __call__(self, addr, access_type, tag, set_num, head ):
             if( self.policy == 0):
                 randomizer = random.randint(0, self.cache.bbox.ways)
-                head = curr
+                curr = head
                 while( randomizer > 0):
                     curr = curr.next
                 #update ?
@@ -149,7 +150,7 @@ class replacer:
                 curr = head
                 prev = None
                 pprev = None 
-                while( curr.valid_bit != False and curr != None ):
+                while( curr != None and curr.valid_bit != False):
                     pprev = prev
                     prev = curr
                     curr = curr.next
@@ -167,6 +168,36 @@ class replacer:
                     curr.valid_bit = True
             
             if( self.policy == 2):
+                curr = head
+                hit_status = -1
+                while( curr != None ):
+                    if( curr.tag == tag ):
+                        hit_status = 1
+                        curr.dirty_bit = 1 if access_type == 1 else 0
+                        curr.valid_bit = True
+                        break
+
+                curr = head
+                while(curr != None ):
+                    if( curr.valid_bit == False):
+                        hit_status = 0
+                        curr.tag = tag
+                        curr.dirty_bit = access_type
+                        curr.valid_bit = True
+                        break
+                
+                evit_tag = self.tree.update_tree( tag, hit_status, set_num )
+
+                curr = head
+                if( hit_status == -1 ):
+                    while( curr.tag != evit_tag):
+                        curr = curr.next
+                
+                    curr.tag = tag
+                    curr.dirty_bit = access_type
+                    curr.valid_bit = True
+
+                 
 
 
 
@@ -181,12 +212,43 @@ class cache_block:
         self.next = None  # Initialize next as null 
   
   
+class Pseudo_LRU:
+    def __init__(self, replacer, cache):
+        self.ways = cache.bbox.ways
+        (rows, cols) = ( cache.bbox.num_sets, (2*cache.bbox.ways - 1) )
+        self.tree =  [[0 for i in range(cols)] for j in range(rows)]
+        self.cache = cache
+        self.bbox = cache.bbox
+
+    def update_tree( self, tag, hit_status, set_num  ): 
+        if( hit_status == -1):
+            pos= 0
+            while( pos < self.ways -1 ):
+                d = self.tree[set_num][pos]
+                self.tree[set_num][pos] ^= 1
+                pos = 2*pos + (d+1)
+            ans = self.tree[set_num][pos]
+            self.tree[set_num][pos] = tag
+            return ans
+        
+        pos = 0
+        for i in range( self.ways - 1, 2*self.ways - 1):
+            if( self.tree[set_num][i] == tag ):
+                pos = i
+                break
+        
+        while( pos != 0 ):
+            d = (pos - 1)//2
+            self.tree[set_num][d] ^= ((pos %2) ^ self.tree[set_num][d])
+            pos = d
+
+
 # Linked List class contains a Node object 
 class cache_set: 
   
     # Function to initialize head 
     def __init__(self, ways): 
-        self.head = self.create(ways)
+        self.head = self.create_list(ways)
 
 
     def create_list(self, length):
@@ -201,4 +263,46 @@ class cache_set:
 
 
         
+cache = Cache(4,1, 2**16, 2**3)
+cache.access('0000555F')
 
+'''
+Updates:
+-------
+
+Directmapped cache : KO ( passed test ) -- Ex1
+
+
+TODO:
+----
+
+Test parameters for fully associative
+Test LRU for set associative / fully associative
+Test Pseudo LRU for set associative
+'''
+
+'''
+Please write your examples here for me to test
+
+Ex 1:
+cache(1, 1, 2**16, 2**3)
+cachce.access('7FFFFFFF')
+
+sol:
+Number of Read Accesses = 1
+Number of Write Accesses = 0
+Number of Cache Misses = 1
+Number of Compulsory Misses = 1 
+Number of Capacity Misses = N/A
+Number of Conflict Misses = 0
+Number of Read Misses = 1
+Number of Write Misses = 0
+Number of Dirty Blocks Evicted = 0
+
+Ex 2:
+cache(4, 1, 2**16, 2**3)
+cachce.access('0000555F')
+set number = 683( 01010101011 )
+use this as a running example
+
+'''
