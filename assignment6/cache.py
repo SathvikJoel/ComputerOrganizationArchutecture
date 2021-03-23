@@ -36,7 +36,7 @@ class Cache:
         self.enum_blocks = math.log2(self.num_blocks) 
         self.eblock_size = math.log2(block_size)      
 
-        #self.metrics = cache_metric(associativity, replacement_policy) 
+        self.metrics = cache_metric(associativity, replacement_policy) 
         self.bbox = bbox(self, associativity) 
         self.replacer = replacer(self, replacement_policy)  
             
@@ -68,7 +68,23 @@ class Cache:
         return (bin(int(string, 16))[2:]).zfill(32)
 
 class cache_metric:
-    pass
+    def __init__(self,associativity , replacement_policy ):
+        self.cache_access = 0
+        self.read_access = 0
+        self.write_access = 0
+        self.cache_miss = 0
+        self.compulsory_miss = 0
+        self.capacity_miss = 0
+        self.conflict_miss = 0
+        self.read_miss = 0
+        self.write_miss = 0
+        self.dirty_evicted = 0
+    def update(self, strings):
+        if type(strings) == str:
+            self.__dict__[strings] += 1
+        else:
+            for string in strings:
+                self.__dict__[string] += 1
 
 
 class bbox:
