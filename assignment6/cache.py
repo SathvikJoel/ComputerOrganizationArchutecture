@@ -105,8 +105,8 @@ class bbox:
         
         if( self.associativity != 1):
             #go to the set
-            head = self.sets[self.set_num(addr)].head
-            self.cache.replacer(addr, access_type, self.tag(addr), self.set_num(addr), head)         
+            cache_set = self.sets[self.set_num(addr)]
+            self.cache.replacer(addr, access_type, self.tag(addr), self.set_num(addr), cache_set)         
 
 
     def block_num(self, addr):
@@ -116,7 +116,7 @@ class bbox:
         return addr[0:int(self.tagbits)]
     
     def set_num(self, addr):
-        if( self.enum_sets == 0): return 1
+        if( self.enum_sets == 0): return 0
         return int(addr[int(self.tagbits):int(self.tagbits) + int(self.enum_sets)], 2)
 
 
@@ -135,40 +135,69 @@ class replacer:
             self.tree = Pseudo_LRU(self, cache)
             
         
-    def __call__(self, addr, access_type, tag, set_num, head ):
+    def __call__(self, addr, access_type, tag, set_num, cache_set ):
             if( self.policy == 0):
                 randomizer = random.randint(0, self.cache.bbox.ways)
-                curr = head
-                while( randomizer > 0):
+                curr = cache_set.head
+                randomizer = randomizer - 1
+                while( randomizer >= 0):
                     curr = curr.next
+                    randomizer = randomizer -1
                 #update ?
                 curr.tag = tag
                 curr.valid_bit = True
                 if( access_type == 1): curr.dirty_bit = True
 
             if( self.policy == 1):
-                curr = head
+                self.print_cache(cache_set.head)
+                curr = cache_set.head
                 prev = None
-                pprev = None 
+                pprev = None
+                #check if the block is already present in the cache
+                while( curr != None and curr.tag != tag):
+                    pprev = prev
+                    prev = curr
+                    curr = curr.next
+                if( curr != None and curr.tag == tag):
+                    print("{tag = ", tag, "} already prensent ")
+                    if( prev != None ): prev.next = curr.next
+                    temp = cache_set.head
+                    cache_set.head = curr
+                    if( prev != None ):cache_set.head.next = temp
+                    return
+                
+                curr = cache_set.head
+                prev = None
+                pprev = None
                 while( curr != None and curr.valid_bit != False):
                     pprev = prev
                     prev = curr
                     curr = curr.next
                 if( curr == None ):
+                    print("{tag = ", tag, "} cache full, evicting {prev.tag" , prev.tag , "}")
                     #update? remove the last block in linked list 
                     prev.tag = tag
-                    temp = head.next
-                    head = prev
-                    pprev.next = None
-                    head.next = temp
+                    temp = cache_set.head
+                    cache_set.head = prev
+                    if( pprev != None ): pprev.next = None
+                    cache_set.head.next = temp
+                    return
+
                 if( curr.valid_bit == False ):
+                    print("{tag = ", tag, "} invlaid found ")
                     #update
                     curr.tag = tag
                     if( access_type == 1): curr.dirty_bit = True
                     curr.valid_bit = True
+                    # bring the block to the front
+                    if( prev != None ): prev.next = curr.next
+                    temp = cache_set.head
+                    cache_set.head = curr
+                    if( prev != None ):cache_set.head.next = temp
+
             
             if( self.policy == 2):
-                curr = head
+                curr = cache_set.head
                 hit_status = -1
                 while( curr != None ):
                     if( curr.tag == tag ):
@@ -177,7 +206,7 @@ class replacer:
                         curr.valid_bit = True
                         break
 
-                curr = head
+                curr = cache_set.head
                 while(curr != None ):
                     if( curr.valid_bit == False):
                         hit_status = 0
@@ -188,7 +217,7 @@ class replacer:
                 
                 evit_tag = self.tree.update_tree( tag, hit_status, set_num )
 
-                curr = head
+                curr = cache_set.head
                 if( hit_status == -1 ):
                     while( curr.tag != evit_tag):
                         curr = curr.next
@@ -197,7 +226,11 @@ class replacer:
                     curr.dirty_bit = access_type
                     curr.valid_bit = True
 
-                 
+    def print_cache(self, head):
+        curr = head
+        while( curr != None ):
+            print( curr.tag , "->") 
+            curr = curr.next            
 
 
 
@@ -257,7 +290,7 @@ class cache_set:
         for _ in  range(1, length):
             head.next = cache_block('0')
             head = head.next
-        return head
+        return linked_list
 
 
 
@@ -265,18 +298,25 @@ class cache_set:
         
 cache = Cache(4,1, 2**16, 2**3)
 cache.access('0000555F')
-
+cache.access('0000955F')
+cache.access('0000D55F')
+cache.access('0001D55F')
+cache.access('0A00555F')
+cache.access('0001D55F')
+cache.access('0A00555F')
+cache.access('0B00555F')
+cache.access('0C00555F')
 '''
 Updates:
 -------
 
 Directmapped cache : KO ( passed test ) -- Ex1
-
+Test parameters for fully associative -- Ex3
+tested LRU for set associative --Ex4 ( cherrith I will kil you!!, u easted my time)
 
 TODO:
 ----
 
-Test parameters for fully associative
 Test LRU for set associative / fully associative
 Test Pseudo LRU for set associative
 '''
@@ -304,5 +344,23 @@ cache(4, 1, 2**16, 2**3)
 cachce.access('0000555F')
 set number = 683( 01010101011 )
 use this as a running example
+
+
+Ex 3:
+cache(0,0,2**16, 2**3)
+cache.access('0000555F')
+
+
+Ex 4:
+cache = Cache(4,1, 2**16, 2**3)
+cache.access('0000555F')
+cache.access('0000955F')
+cache.access('0000D55F')
+cache.access('0001D55F')
+cache.access('0A00555F')
+cache.access('0001D55F')
+cache.access('0A00555F')
+cache.access('0B00555F')
+cache.access('0C00555F')
 
 '''
