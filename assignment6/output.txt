@@ -1,0 +1,4 @@
+associativity = 1
+replacement_policy = 2
+cache_access = 9
+read_access = 9
