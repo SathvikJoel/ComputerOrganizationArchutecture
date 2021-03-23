@@ -49,9 +49,18 @@ class Cache:
             Hexadecimal Input string given by the user for request
         """
         addr = self.hex_2_bin(string)
-        access_type = addr[0]
+        print(addr)
+        access_type = int(addr[0])
+        print(access_type)
         addr = addr[1:]
+        print(addr)
+        print("-----")
 
+        self.metrics.update(['cache_access'])
+        if( access_type == 0):
+            self.metrics.update('read_access')
+        if( access_type == 1):
+            self.metrics.update('write_access')
         self.bbox(addr, access_type)
 
     @staticmethod
@@ -66,6 +75,9 @@ class Cache:
             
         """
         return (bin(int(string, 16))[2:]).zfill(32)
+    
+    def out(self):
+        self.metrics.print_metrics()
 
 class cache_metric:
     def __init__(self,associativity , replacement_policy ):
@@ -79,6 +91,7 @@ class cache_metric:
         self.read_miss = 0
         self.write_miss = 0
         self.dirty_evicted = 0
+
     def update(self, strings):
         if type(strings) == str:
             self.__dict__[strings] += 1
@@ -86,6 +99,9 @@ class cache_metric:
             for string in strings:
                 self.__dict__[string] += 1
 
+    def print_metrics(self):
+        for k,v in self.__dict__.items():
+            print( k ," = ", v)
 
 class bbox:
     def __init__(self, cache, associativity):
@@ -110,6 +126,7 @@ class bbox:
             line = self.blocks[self.block_num(addr)]
             
             if( line.tag == self.tag(addr)):
+
                 pass
                 #update?
 
@@ -153,19 +170,50 @@ class replacer:
         
     def __call__(self, addr, access_type, tag, set_num, cache_set ):
             if( self.policy == 0):
+                curr = cache_set.head
+                while( curr != None and curr.tag != tag):
+                    curr = curr.next
+
+                if( curr!= None and curr.tag == tag ):
+                    # present 
+                    return
+                    #update
+                self.cache.metrics.update('cache_miss')
+                if( access_type == 0):
+                    self.cache.metrics.update('read_miss')
+                else:
+                    self.cache.metrics.update('write_miss')
+
+                curr = cache_set.head
+                while( curr != None and curr.valid_bit != False):
+                    curr   = curr.next
+                
+                if( curr != None and curr.valid_bit == False ):
+                    curr.tag = tag
+                    curr.valid_bit = True
+                    curr.dirty_bit = access_type
+                    self.cache.metrics.update('compulsory_miss')
+                    return
+
+                #random
+                if( self.cache.bbox.associativity == 0): self.cache.metrics.update('capacity_misses')
+                self.cache.metrics.update('conflict_miss')
+
                 randomizer = random.randint(0, self.cache.bbox.ways)
                 curr = cache_set.head
                 randomizer = randomizer - 1
                 while( randomizer >= 0):
                     curr = curr.next
                     randomizer = randomizer -1
-                #update ?
+                if( curr.dirty_bit == True): self.cache.metrics.update('dirty_evicted')
+
                 curr.tag = tag
                 curr.valid_bit = True
-                if( access_type == 1): curr.dirty_bit = True
+                curr.dirty_bit = bool(access_type)
 
             if( self.policy == 1):
-                self.print_cache(cache_set.head)
+                #LRU
+                #self.print_cache(cache_set.head)
                 curr = cache_set.head
                 prev = None
                 pprev = None
@@ -175,13 +223,19 @@ class replacer:
                     prev = curr
                     curr = curr.next
                 if( curr != None and curr.tag == tag):
-                    print("{tag = ", tag, "} already prensent ")
+                    #print("{tag = ", tag, "} already prensent ")
                     if( prev != None ): prev.next = curr.next
                     temp = cache_set.head
                     cache_set.head = curr
                     if( prev != None ):cache_set.head.next = temp
                     return
-                
+
+                self.cache.metrics.update('cache_miss')
+                if( access_type == 0):
+                    self.cache.metrics.update('read_miss')
+                else:
+                    self.cache.metrics.update('write_miss')
+
                 curr = cache_set.head
                 prev = None
                 pprev = None
@@ -190,8 +244,12 @@ class replacer:
                     prev = curr
                     curr = curr.next
                 if( curr == None ):
-                    print("{tag = ", tag, "} cache full, evicting {prev.tag" , prev.tag , "}")
-                    #update? remove the last block in linked list 
+                    #print("{tag = ", tag, "} cache full, evicting {prev.tag" , prev.tag , "}")
+                    if( prev.dirty_bit == True): self.cache.metrics.update('dirty_evicted')
+                    if( self.cache.bbox.associativity == 0): self.cache.metrics.update('capacity_misses')
+                    self.cache.metrics.update('conflict_miss')
+                    #update? remove the last block in linked list
+
                     prev.tag = tag
                     temp = cache_set.head
                     cache_set.head = prev
@@ -200,8 +258,9 @@ class replacer:
                     return
 
                 if( curr.valid_bit == False ):
-                    print("{tag = ", tag, "} invlaid found ")
+                    #print("{tag = ", tag, "} invlaid found ")
                     #update
+                    self.cache.metrics.update('compulsory_miss')
                     curr.tag = tag
                     if( access_type == 1): curr.dirty_bit = True
                     curr.valid_bit = True
@@ -213,31 +272,50 @@ class replacer:
 
             
             if( self.policy == 2):
+                #Pseudo-LRU
                 curr = cache_set.head
                 hit_status = -1
                 while( curr != None ):
                     if( curr.tag == tag ):
                         hit_status = 1
-                        curr.dirty_bit = 1 if access_type == 1 else 0
-                        curr.valid_bit = True
+                        curr.dirty_bit = True if access_type == 1 else False
                         break
+                    
+                    curr = curr.next
+                
+                if( hit_status != 1 ):
+                    self.cache.metrics.update('cache_miss')
+                    if( access_type == 0):
+                        self.cache.metrics.update('read_miss')
+                    else:
+                        self.cache.metrics.update('write_miss')
 
                 curr = cache_set.head
                 while(curr != None ):
                     if( curr.valid_bit == False):
+                        self.cache.metrics.update('compulsory_miss')
                         hit_status = 0
                         curr.tag = tag
                         curr.dirty_bit = access_type
                         curr.valid_bit = True
                         break
+                    curr = curr.next
                 
+                # capacity miss
+                if( hit_status == -1):
+                    if( self.cache.bbox.associativity == 0): self.cache.metrics.update('capacity_misses')
+                    self.cache.metrics.update('conflict_miss')
+
+
                 evit_tag = self.tree.update_tree( tag, hit_status, set_num )
 
                 curr = cache_set.head
                 if( hit_status == -1 ):
-                    while( curr.tag != evit_tag):
+                    while( curr!= None and curr.tag != evit_tag):
                         curr = curr.next
-                
+
+                    if( curr.dirty_bit == True): self.cache.metrics.update('dirty_evicted')
+
                     curr.tag = tag
                     curr.dirty_bit = access_type
                     curr.valid_bit = True
@@ -270,7 +348,7 @@ class Pseudo_LRU:
         self.bbox = cache.bbox
 
     def update_tree( self, tag, hit_status, set_num  ): 
-        if( hit_status == -1):
+        if( hit_status != 1):
             pos= 0
             while( pos < self.ways -1 ):
                 d = self.tree[set_num][pos]
@@ -278,6 +356,9 @@ class Pseudo_LRU:
                 pos = 2*pos + (d+1)
             ans = self.tree[set_num][pos]
             self.tree[set_num][pos] = tag
+            for i in range( 2*self.ways - 1):
+                print(self.tree[set_num][i] , end = " -- ")
+            print( " tree completed")
             return ans
         
         pos = 0
@@ -290,6 +371,10 @@ class Pseudo_LRU:
             d = (pos - 1)//2
             self.tree[set_num][d] ^= ((pos %2) ^ self.tree[set_num][d])
             pos = d
+        
+        for i in range( 2*self.ways - 1):
+                print(self.tree[set_num][i] , end = " -- ")
+        print( " tree completed")
 
 
 # Linked List class contains a Node object 
@@ -312,7 +397,7 @@ class cache_set:
 
 
         
-cache = Cache(4,1, 2**16, 2**3)
+cache = Cache(4,2, 2**16, 2**3)
 cache.access('0000555F')
 cache.access('0000955F')
 cache.access('0000D55F')
@@ -322,6 +407,7 @@ cache.access('0001D55F')
 cache.access('0A00555F')
 cache.access('0B00555F')
 cache.access('0C00555F')
+cache.out()
 '''
 Updates:
 -------
