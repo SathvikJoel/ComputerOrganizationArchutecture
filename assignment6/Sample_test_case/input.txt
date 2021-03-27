@@ -1,7 +1,9 @@
-4096
-64
-4
-1
+4096	 #Cache size
+64  	 #Cache line size
+1   	 #DM cache
+1   	 #LRU replacement
+Name of the file containing the memory traces. For simplicity, we have given the addresses here itself.
+
 0x6b8b4567 w
 0x327b23c6 r
 0x643c9869 w
@@ -27,3 +29,4 @@
 0x1190cde7 w
 0x66ef438d r
 0x140e0f76 w
+
