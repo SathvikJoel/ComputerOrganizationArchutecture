@@ -244,6 +244,7 @@ class lru_policy:
             curr.tag = tag
             curr.valid_bit = 1
             curr.dirty_bit = access_type
+            return
 
         while(curr.next.next != None):curr = curr.next
 
