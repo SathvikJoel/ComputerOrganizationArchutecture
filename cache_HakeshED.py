@@ -1,9 +1,34 @@
+"""
+Authors : 
+1. K Sathvik Joel CS19B025
+2. Cherrith CS19B037
+3. D Hakesh CS19B017
+
+Input File Name : Memory Request are read from input.txt file.
+
+"""
+
+
 import math
 import random
 
 #########################################################################################
 #cache Block 
 class cache_block: 
+    """
+    A cache block class
+
+    Attributes:
+    -----------
+
+    tag: tag in the block
+
+    valid_bit: validity of the cache block, empty or containing a valid tag
+
+    dirty_bit: If the data is written to the address in the block
+
+
+    """
     def __init__(self, tag, valid_bit, dirty_bit, next): 
         self.tag = tag  # Assign data 
         self.valid_bit = valid_bit
@@ -30,6 +55,19 @@ class cache_set:
 #############################################################################################        
 #Performance Counters for the cache
 class cache_metric:
+    """
+    A class to keep track of the cache_metrics
+
+    Attributes
+    ----------
+    The Attributes that need to be measured
+
+    Methods
+    -------
+    update(str)
+        Increments the "str" metric by 1
+
+    """
     def __init__(self,associativity , replacement_policy ):
         self.cache_access = 0
         self.read_access = 0
@@ -54,7 +92,31 @@ class cache_metric:
             print( k ," = ", v)
 ################################################# Cache ####################################################
 class Cache:
-    #initialzing the class
+    """
+    A class used to represent Cache
+
+
+    Attributes
+    ----------
+    num_blocks : int
+        Number of blocks in the cache
+    eblock_num : int
+        Number of bits required for block offset
+    metrics : cache_metrics
+        An object to keep track of metrics for cache
+    cache_core:   cache_core
+        An object to handle the complexities of associativity
+    replacer : replacer
+        An object for handling replacement policies
+
+    Methods
+    -------
+    access(str)
+        Takes a hexadecimal string and process the request 
+    
+    hex_2_bin(str)
+        Converts a hexadecimal string to binary
+    """
     def __init__(self, associativity, replacement_policy, cache_size, block_size):
         #parameters associated with the cache
         self.num_blocks = cache_size // block_size
@@ -93,6 +155,38 @@ class Cache:
 ###############################################################################################
 
 class bbox:
+    """
+    A class for dealing with the sets and tags of an address
+
+    Attributes
+    ----------
+    ways:int
+        The number of ways in cache
+
+    num_sets:int
+        Number of sets in cache
+
+    enum_sets:int
+        log of number of sets
+    
+    sets:List
+        List of cache_set objects each representing a set
+
+    tag_bits:int
+        Number of binary digits in tag 
+
+    Methods
+    -------
+    block_num(addr)
+        The block number corresponding to the address
+    
+    tag(addr)
+        returns the tag bits in addr
+    
+    set_num(addr)
+        returns the set_num of the addr
+    
+    """
     def __init__(self, cache, associativity):
         self.associativity = associativity
         self.cache = cache
@@ -119,6 +213,19 @@ class bbox:
 ##########################################################################################################
     
 class replacer:
+    """
+    class for managing the address calling protocol in a set
+
+    Attributes
+    ----------
+    policy:obj
+        Object to deal with replacement policy
+    
+    Methods
+    -------
+    _call_(*args, **kwargs)
+        Executes the address replacment protocol in a set designated by cache_core
+    """
     def __init__(self, cache, replacement_policy):
         self.old_address = dict()
         self.cache = cache
@@ -148,10 +255,17 @@ class replacer:
        
 #########################################################################################################
 class random_policy:
+    '''
+    A class to deal with random policy
+
+    '''
     def __init__(self , replacer):
         self.cache = replacer.cache
 
     def tag_check(self, tag, cache_set, access_type,set_num):
+        """
+        Traverse through the set and check for the tag
+        """
         curr = cache_set.head
         while( curr != None and curr.tag != tag):   curr = curr.next
 
@@ -161,6 +275,9 @@ class random_policy:
         return -1
 
     def empty_block(self, tag, cache_set, hit_status, access_type,set_num):
+        """
+        Traverse through the set and replace it if there is a empty block in the set
+        """
         curr = cache_set.head
         while( curr != None and curr.valid_bit != False):
             curr   = curr.next
@@ -174,6 +291,9 @@ class random_policy:
         return hit_status
 
     def evict(self, access_type, tag, cache_set , hit_status,set_num):
+        """
+        Select a random block and evict the block
+        """
         randomizer = random.randint(0, self.cache.bbox.ways-1)
         
         curr = cache_set.head
@@ -188,43 +308,63 @@ class random_policy:
         curr.dirty_bit = access_type
 
 #####################################################################################################
+#Pseudo LRU Policy 
 class lru_policy:
     def __init__(self, replacer):
         self.cache = replacer.cache
-    
+
+    #Checking Tag in cache
     def tag_check(self,tag, cache_set, access_type ,set_num):
+        #Head of current set 
         curr = cache_set.head
-        if(curr == None):print("NO Data !") ; exit(0)
+        #Invalid case
+        if(curr == None):print("Error : No Data !") ; exit(0)
 
-        if(curr.tag == tag):return 1
+        #If required Block present already as head of set
+        if(curr.tag == tag): return 1
 
+        #Iterating over set to find corresponding tag block
+        #if found , we move that block to head.
         while(curr.next != None):
             if(curr.next.tag == tag):
                 newHead = curr.next
                 curr.next = newHead.next
+
+                #moving hit block to head of set
                 newHead.next = cache_set.head
                 cache_set.head = newHead
                 return 1
             curr = curr.next
+
+        #if not found    
         return -1
 
     def empty_block(self,tag, cache_set, hit_status, access_type,set_num):
         curr = cache_set.head
-        if(curr == None):print("no data "); exit(0)
 
+        #invalid case
+        if(curr == None):print("Error : no data "); exit(0)
+
+        #if invalid block is at start itself
         if(curr.valid_bit == 0):
             curr.tag = tag
             curr.valid_bit = 1
             curr.dirty_bit = access_type
             return 0
 
+        #iterating for invalid block
+        #if found , we keep current block into that first invalid block in set
+        #and we move it to head of set
         while(curr.next != None):
             if(curr.next.valid_bit == 0):
                 newHead = curr.next
                 curr.next = newHead.next
+
+                #moving first invalid block to head
                 newHead.next = cache_set.head
                 cache_set.head = newHead
 
+                #keeping current block to first invalid block(the head)
                 cache_set.head.tag = tag
                 cache_set.head.valid_bit = 1
                 cache_set.head.dirty_bit = access_type
@@ -232,11 +372,17 @@ class lru_policy:
                 return 0
 
             curr = curr.next
+
+        #If no invalid block present
         return -1
 
     def evict(self,access_type, tag, cache_set , hit_status,set_num):
         curr = cache_set.head
+
+        #Invalid case
         if(curr == None):print("data not there");exit(0)
+
+        #if only one block in cache.
         if(curr.next == None):
             if(curr.dirty_bit == 1):
                 self.cache.metrics.update('dirty_evicted')
@@ -246,15 +392,22 @@ class lru_policy:
             curr.dirty_bit = access_type
             return
 
-        while(curr.next.next != None):curr = curr.next
+        #We need to go to tail of set for eviction .. the least recently accessed block will be there.
+        while(curr.next.next != None): curr = curr.next
 
+        #note : tail address is curr.next 
+        #if tail is dirty block, update it in metrics.
         if(curr.next.dirty_bit == 1):
             self.cache.metrics.update('dirty_evicted')
 
+        #Moving evictable block to head 
+        #and keeping it to head.
         newHead = curr.next
         curr.next = None
+
         newHead.next = cache_set.head
         cache_set.head = newHead
+
         newHead.tag = tag
         newHead.valid_bit = 1
         newHead.dirty_bit = access_type
@@ -262,13 +415,22 @@ class lru_policy:
 
 
 #############################################################################################################
+#Class that deals with pseudo lru policy
 class pseudo_policy:
-    def __init__(self,replacer):
+    """
+    Class to deal with the pseudo_lru policy
+    """
+    def __init__(self, replacer):
+        #Assigning cache 
         self.cache = replacer.cache
         self.tree = Pseudo_LRU(replacer, self.cache)
         
-
+    #Checking the tag in cache.
+    #If present we update Pseudo LRU tree
     def tag_check(self, tag, cache_set, access_type,set_num):
+        """
+        Check if the tag is present
+        """
         curr = cache_set.head
         while( curr != None ):
             if( curr.tag == tag ):
@@ -280,6 +442,9 @@ class pseudo_policy:
         return -1
 
     def empty_block(self, tag, cache_set, hit_status, access_type,set_num):
+        """
+        Check for the empty block, if it is presnt replace it
+        """
         curr = cache_set.head
         while(curr != None ):
             if( curr.valid_bit == 0):
@@ -294,6 +459,11 @@ class pseudo_policy:
         return hit_status
 
     def evict(self,access_type, tag, cache_set , hit_status, set_num):
+        """
+        Update the tree
+
+        Evict from cache if it is required
+        """
         evit_tag = self.tree.update_tree( tag, hit_status, set_num )
         self.evict_tag_from_cache( evit_tag, tag,access_type, cache_set, hit_status)
 
@@ -308,42 +478,65 @@ class pseudo_policy:
         curr.dirty_bit = access_type
 
 #####################################################################################################
- 
+ #Pseudo LRU Implementation
 class Pseudo_LRU:
     def __init__(self, replacer, cache):
         self.ways = cache.bbox.ways
         (rows, cols) = ( cache.bbox.num_sets, (2*cache.bbox.ways - 1) )
+
+        #Declaring Tree for Pseudo LRU
         self.tree =  [[0 for i in range(cols)] for j in range(rows)]
+
         self.cache = cache
         self.bbox = cache.bbox
 
-    def update_tree( self, tag, hit_status, set_num  ): 
+    def update_tree( self, tag, hit_status, set_num  ):
+        #if memory request is Miss
+        #We traverse Along root to leaf to find evictable block or invalid block. 
         if( hit_status != 1):
             pos= 0
+
+            #travelling along tree from root to leaf 
+            #And updating internal nodes (toggling)
             while( pos < self.ways -1 ):
                 d = self.tree[set_num][pos]
                 self.tree[set_num][pos] ^= 1
                 pos = 2*pos + (d+1)
+
+            #Evictable block
             ans = self.tree[set_num][pos]
+            #Inserting new tag into tree
             self.tree[set_num][pos] = tag
             
             return ans
         
+        #When memory request is Hit.
+        #We traversal from leaf, where current tag presents, to root.
+        #And toggle bit such a way that , it doesn't point to current sub-tree
         pos = 0
+
+        #Searching for leaf that has current tag
         for i in range( self.ways - 1, 2*self.ways - 1):
             if( self.tree[set_num][i] == tag ):
                 pos = i
                 break
-        
+
+        #Crawling from leaf to root.
         while( pos != 0 ):
             d = (pos - 1)//2
+
+            #logic to toggle internal nodes for not pointing to same current-sub tree.
             self.tree[set_num][d] ^= ((pos %2) ^ self.tree[set_num][d])
+
             pos = d
 
 
 #######################################################################################################
 
 def cache_miss_update(replacer, access_type):
+    """
+    update the metrics if there is a cache miss
+    """
     replacer.cache.metrics.update('cache_miss')
     if( access_type == 0):
         replacer.cache.metrics.update('read_miss')
@@ -351,6 +544,9 @@ def cache_miss_update(replacer, access_type):
         replacer.cache.metrics.update('write_miss')
 
 def capacity_conflict_update(replacer):
+    """
+    update the metrics if there is a conflict or capacity miss
+    """
     if( replacer.cache.bbox.associativity == 0): replacer.cache.metrics.update('capacity_misses')
     ##Even in non-fully associative caches , if it is capacity miss ,it wont count for conflict misses.
     else:replacer.cache.metrics.update('conflict_miss')
@@ -358,33 +554,40 @@ def capacity_conflict_update(replacer):
 
 #################################  File Reading and printing Section.  ##################################################
 
-
+#opening the input file to be read.
 f = open( 'input.txt', 'r')
 x = f.readlines()
+
+#collecting cache related data.
 cache_size, cache_linesize , dm_cache , replacement_policy = x[:4]
-
-print("Cache Size : ", end = " ")
-print(cache_size.strip())
-print("Block Size : " , end = " ")
-print(cache_linesize.strip())
-print("Type of Cache : ",end = " ")
-if(dm_cache == 0):print("Fully Associative Cache")
-elif(dm_cache == 1):print("Direct - Mapped Cache")
-else:
-    print("Set Associative Cache ",end = " " )
-    print(dm_cache.strip(),end = ' ')
-    print("Way")
-print("Replacement Policy : ",end = " ")
-if(replacement_policy == 0):print("Random Replacement Policy")
-elif(replacement_policy == 1):print("LRU Replacement Policy")
-else:print("Pseudo LRU Replacement Policy" )
-
+#Servicing Memory requests
 cache = Cache(int(dm_cache.strip()),int(replacement_policy.strip()),int(cache_size.strip()),int(cache_linesize.strip()) )
 for i in x[4:]:
     addr, access = i.split()
     cache.access(addr.strip(), access.strip())
 
-print(cache.out())
+###################################### Printing Section #############################################################    
+#Printing cache related stuff
+print("Cache Size : ", end = " ")
+print(cache_size.strip())
+print("Block Size : " , end = " ")
+print(cache_linesize.strip())
+print("Type of Cache : ",end = " ")
+
+if(int(dm_cache.strip()) == 0):print("Fully Associative Cache")
+elif(int(dm_cache.strip()) == 1):print("Direct - Mapped Cache")
+else:
+    print("Set Associative Cache ",end = " " )
+    print(dm_cache.strip(),end = ' ')
+    print("Way")
+
+print("Replacement Policy : ",end = " ")
+if(int(replacement_policy.strip()) == 0): print("Random Replacement Policy")
+elif(int(replacement_policy.strip()) == 1): print("LRU Replacement Policy")
+else:print("Pseudo LRU Replacement Policy" )
+
+#finally printing metrics of class.
+cache.out()
 
 f.close()
 ######################################################################################################################
