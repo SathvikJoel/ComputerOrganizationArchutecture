@@ -1,10 +1,11 @@
 """
 Authors : 
 1. K Sathvik Joel CS19B025
-2. Cherrith CS19B037
+2. P Cherrith CS19B035
 3. D Hakesh CS19B017
 
 Input File Name : Memory Request are read from input.txt file.
+Note : Require Python 2.7 or more version to run.
 
 """
 
@@ -34,6 +35,10 @@ class cache_block:
         self.valid_bit = valid_bit
         self.dirty_bit = dirty_bit
         self.next = next  
+    def __call__(self, tag, valid_bit, dirty_bit):
+        self.tag = tag
+        self.valid_bit = valid_bit
+        self.dirty_bit = dirty_bit
 
 ############################################################################################ 
 # Linked List class contains a Node object 
@@ -346,10 +351,9 @@ class lru_policy:
         if(curr == None):print("Error : no data "); exit(0)
 
         #if invalid block is at start itself
-        if(curr.valid_bit == 0):
-            curr.tag = tag
-            curr.valid_bit = 1
-            curr.dirty_bit = access_type
+        if(curr.valid_bit == 0): 
+            curr(tag, 1, access_type)
+            
             return 0
 
         #iterating for invalid block
@@ -365,9 +369,7 @@ class lru_policy:
                 cache_set.head = newHead
 
                 #keeping current block to first invalid block(the head)
-                cache_set.head.tag = tag
-                cache_set.head.valid_bit = 1
-                cache_set.head.dirty_bit = access_type
+                cache_set.head(tag, 1, access_type)
 
                 return 0
 
@@ -386,10 +388,7 @@ class lru_policy:
         if(curr.next == None):
             if(curr.dirty_bit == 1):
                 self.cache.metrics.update('dirty_evicted')
-
-            curr.tag = tag
-            curr.valid_bit = 1
-            curr.dirty_bit = access_type
+            curr(tag, 1, access_type)
             return
 
         #We need to go to tail of set for eviction .. the least recently accessed block will be there.
@@ -408,9 +407,8 @@ class lru_policy:
         newHead.next = cache_set.head
         cache_set.head = newHead
 
-        newHead.tag = tag
-        newHead.valid_bit = 1
-        newHead.dirty_bit = access_type
+        newHead(tag, 1, access_type)
+        
 
 
 
@@ -448,11 +446,9 @@ class pseudo_policy:
         curr = cache_set.head
         while(curr != None ):
             if( curr.valid_bit == 0):
-                curr.tag = tag
-                curr.valid_bit = 1
-                curr.dirty_bit = access_type
+                curr(tag, 1, access_type)
                 
-                self.tree.update_tree( tag, 0, set_num )
+                self.tree.update_tree(tag, 0, set_num)
 
                 return 0
             curr = curr.next
@@ -473,9 +469,8 @@ class pseudo_policy:
         while( curr!= None and curr.tag != evit_tag): curr = curr.next
 
         if( curr.dirty_bit == True): self.cache.metrics.update('dirty_evicted')
-        curr.tag = tag
-        curr.valid_bit = 1
-        curr.dirty_bit = access_type
+
+        curr(tag, 1, access_type)
 
 #####################################################################################################
  #Pseudo LRU Implementation
@@ -552,7 +547,7 @@ def capacity_conflict_update(replacer):
     else:replacer.cache.metrics.update('conflict_miss')
 
 
-#################################  File Reading and printing Section.  ##################################################
+####################################  File Reading and printing Section.  ##################################################
 
 #opening the input file to be read.
 f = open( 'input.txt', 'r')
@@ -563,10 +558,11 @@ cache_size, cache_linesize , dm_cache , replacement_policy = x[:4]
 #Servicing Memory requests
 cache = Cache(int(dm_cache.strip()),int(replacement_policy.strip()),int(cache_size.strip()),int(cache_linesize.strip()) )
 for i in x[4:]:
+    if(i == '\n'):continue
     addr, access = i.split()
     cache.access(addr.strip(), access.strip())
 
-###################################### Printing Section #############################################################    
+########################################### Printing Section #############################################################    
 #Printing cache related stuff
 print("Cache Size : ", end = " ")
 print(cache_size.strip())
