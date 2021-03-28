@@ -446,7 +446,6 @@ class Pseudo_LRU:
                 print(self.tree[set_num][i] , end = " -- ")
             print( " tree completed")
             return ans
-        
         pos = 0
         for i in range( self.ways - 1, 2*self.ways - 1):
             if( self.tree[set_num][i] == tag ):
